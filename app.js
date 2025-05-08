@@ -11,7 +11,18 @@ import {
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
-const firebaseConfig = { /* Your config here */ };
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDPCMHKcX8A9nDotgftqHMzqRN1W7rvcPA",
+  authDomain: "textme-ae3dc.firebaseapp.com",
+  projectId: "textme-ae3dc",
+  storageBucket: "textme-ae3dc.firebasestorage.app",
+  messagingSenderId: "461630294646",
+  appId: "1:461630294646:web:d305cdf10e098649fb2d57",
+  measurementId: "G-GZ35R77RJP"
+};
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
