@@ -10,17 +10,32 @@
 <body>
   <div class="container">
     <h1>Notes Sharing App</h1>
+    
+    <!-- Folder Section -->
+    <div class="folder-section">
+      <input type="text" id="folderInput" placeholder="New folder name...">
+      <button id="createFolderBtn">Create Folder</button>
+      <select id="folderSelect">
+        <option value="default">Default Folder</option>
+      </select>
+    </div>
+
+    <!-- Note Input -->
     <div class="input-section">
       <textarea id="noteInput" placeholder="Write your note here..."></textarea>
       <button id="addNoteBtn">Add Note</button>
     </div>
-    <div id="notesContainer"></div>
+
+    <!-- Folders & Notes Container -->
+    <div id="foldersContainer"></div>
+
+    <!-- Status Message (for copy feedback) -->
+    <div id="statusMsg"></div>
   </div>
 
   <!-- Firebase and App Scripts -->
   <script type="module" src="app.js"></script>
   <script>
-    // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js')
         .then(() => console.log('Service Worker Registered'))
