@@ -166,3 +166,41 @@ button:hover {
   padding: 5px 10px;
   cursor: pointer;
 }
+/* Add these to your existing CSS */
+.folder-title {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  padding: 0;
+  cursor: pointer;
+}
+
+.folder-notes {
+  display: block; /* Start expanded */
+}
+
+.note-actions {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  gap: 5px;
+}
+
+.copy-btn, .delete-note-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1em;
+  padding: 5px;
+}
+
+.copy-btn:hover { color: #28a745; }
+.delete-note-btn:hover { color: #dc3545; }
