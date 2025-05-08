@@ -11,7 +11,6 @@ import {
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
-// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDPCMHKcX8A9nDotgftqHMzqRN1W7rvcPA",
   authDomain: "textme-ae3dc.firebaseapp.com",
@@ -22,7 +21,6 @@ const firebaseConfig = {
   measurementId: "G-GZ35R77RJP"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -46,12 +44,6 @@ createFolderBtn.addEventListener('click', async () => {
         name: folderName,
         timestamp: serverTimestamp()
       });
-      
-      // Add to folder dropdown
-      const option = document.createElement('option');
-      option.value = folderDoc.id;
-      option.textContent = folderName;
-      folderSelect.appendChild(option);
       
       folderInput.value = '';
     } catch (error) {
@@ -85,66 +77,127 @@ addNoteBtn.addEventListener('click', async () => {
 // Display Folders & Notes
 const displayData = (folders, notes) => {
   foldersContainer.innerHTML = '';
-  
+
+  // Handle Default Folder
+  const defaultNotes = notes.filter(note => note.folderId === 'default');
+  if (defaultNotes.length > 0) {
+    const defaultFolder = createFolderElement({
+      id: 'default',
+      name: 'Default Folder'
+    }, defaultNotes);
+    foldersContainer.appendChild(defaultFolder);
+  }
+
+  // Handle Other Folders
   folders.forEach(folder => {
-    const folderDiv = document.createElement('div');
-    folderDiv.className = 'folder';
-    
-    // Folder Header
-    const header = document.createElement('div');
-    header.className = 'folder-header';
-    
-    const title = document.createElement('h3');
-    title.className = 'folder-title';
-    title.textContent = folder.name;
-    
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'delete-folder-btn';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.onclick = () => deleteDoc(doc(db, 'folders', folder.id));
-    
-    header.appendChild(title);
-    header.appendChild(deleteBtn);
-    
-    // Folder Notes
-    const notesDiv = document.createElement('div');
-    notes
-      .filter(note => note.folderId === folder.id)
-      .forEach(note => {
-        const noteElement = document.createElement('div');
-        noteElement.className = 'note';
-        noteElement.innerHTML = `
-          <pre>${note.text}</pre>
-          <button class="copy-btn">Copy</button>
-          <button class="delete-note-btn">Delete</button>
-        `;
-        
-        noteElement.querySelector('.copy-btn').onclick = () => {
-          navigator.clipboard.writeText(note.text);
-          statusMsg.textContent = 'Copied to clipboard!';
-          statusMsg.style.display = 'block';
-          setTimeout(() => statusMsg.style.display = 'none', 2000);
-        };
-        
-        noteElement.querySelector('.delete-note-btn').onclick = () => {
-          deleteDoc(doc(db, 'notes', note.id));
-        };
-        
-        notesDiv.appendChild(noteElement);
-      });
-    
-    folderDiv.appendChild(header);
-    folderDiv.appendChild(notesDiv);
-    foldersContainer.appendChild(folderDiv);
+    const folderNotes = notes.filter(note => note.folderId === folder.id);
+    if (folderNotes.length > 0) {
+      const folderElement = createFolderElement(folder, folderNotes);
+      foldersContainer.appendChild(folderElement);
+    }
   });
 };
 
-// Real-Time Listeners
-onSnapshot(query(collection(db, 'folders'), orderBy('timestamp')), (snapshot) => {
-  const folders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+const createFolderElement = (folder, notes) => {
+  const folderDiv = document.createElement('div');
+  folderDiv.className = 'folder';
+
+  // Folder Header
+  const header = document.createElement('div');
+  header.className = 'folder-header';
+
+  // Toggle Button
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'toggle-btn';
+  toggleBtn.textContent = '▼';
   
+  // Folder Title
+  const title = document.createElement('div');
+  title.className = 'folder-title';
+  title.innerHTML = `
+    <span>${folder.name}</span>
+  `;
+
+  // Delete Button
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'delete-folder-btn';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.onclick = async () => {
+    // Remove from dropdown
+    const options = Array.from(folderSelect.options);
+    const optionToRemove = options.find(opt => opt.value === folder.id);
+    if (optionToRemove) optionToRemove.remove();
+    
+    // Delete folder from Firestore
+    await deleteDoc(doc(db, 'folders', folder.id));
+  };
+
+  // Notes Container
+  const notesDiv = document.createElement('div');
+  notesDiv.className = 'folder-notes';
+
+  // Toggle Functionality
+  let isExpanded = true;
+  toggleBtn.addEventListener('click', () => {
+    isExpanded = !isExpanded;
+    notesDiv.style.display = isExpanded ? 'block' : 'none';
+    toggleBtn.textContent = isExpanded ? '▼' : '▶';
+  });
+
+  // Add Notes
+  notes.forEach(note => {
+    const noteElement = document.createElement('div');
+    noteElement.className = 'note';
+    noteElement.innerHTML = `
+      <pre>${note.text}</pre>
+      <div class="note-actions">
+        <button class="copy-btn">📋</button>
+        <button class="delete-note-btn">🗑️</button>
+      </div>
+    `;
+
+    // Copy Functionality
+    noteElement.querySelector('.copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(note.text);
+      statusMsg.textContent = 'Copied to clipboard!';
+      statusMsg.style.display = 'block';
+      setTimeout(() => statusMsg.style.display = 'none', 2000);
+    });
+
+    // Delete Note
+    noteElement.querySelector('.delete-note-btn').addEventListener('click', () => {
+      deleteDoc(doc(db, 'notes', note.id));
+    });
+
+    notesDiv.appendChild(noteElement);
+  });
+
+  // Assemble Folder
+  header.appendChild(toggleBtn);
+  header.appendChild(title);
+  header.appendChild(deleteBtn);
+  folderDiv.appendChild(header);
+  folderDiv.appendChild(notesDiv);
+
+  return folderDiv;
+};
+
+// Real-Time Listeners
+// Folder Listener (also updates dropdown)
+onSnapshot(query(collection(db, 'folders'), orderBy('timestamp')), (snapshot) => {
+  // Update dropdown
+  folderSelect.innerHTML = '<option value="default">Default Folder</option>';
+  snapshot.docs.forEach(doc => {
+    const option = document.createElement('option');
+    option.value = doc.id;
+    option.textContent = doc.data().name;
+    folderSelect.appendChild(option);
+  });
+
+  // Get updated notes
   onSnapshot(query(collection(db, 'notes'), orderBy('timestamp', 'desc')), (notesSnapshot) => {
     const notes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const folders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     displayData(folders, notes);
   });
 });
