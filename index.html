@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Synced Clipboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
+        <div class="flex items-center space-x-2">
+            <div class="w-4 h-4 rounded-full animate-pulse bg-indigo-500"></div>
+            <div class="w-4 h-4 rounded-full animate-pulse bg-indigo-500 delay-150"></div>
+            <div class="w-4 h-4 rounded-full animate-pulse bg-indigo-500 delay-300"></div>
+            <span class="text-sm font-medium text-gray-700">Initializing App...</span>
+        </div>
+    </div>
+
+    <!-- Authentication Screen -->
+    <section id="auth-section" class="min-h-screen flex items-center justify-center px-4" style="display: none;">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
+            <h2 class="text-3xl font-bold text-center text-indigo-700 mb-6">Synced Clipboard</h2>
+            <div class="space-y-4">
+                <input type="text" id="auth-username" placeholder="Username" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                <input type="password" id="auth-password" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                <p id="auth-error" class="text-sm text-red-600 font-medium"></p>
+                <div class="flex space-x-3">
+                    <button id="login-btn" class="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition duration-200 shadow-md">Login</button>
+                    <button id="register-btn" class="w-full py-3 bg-indigo-400 text-white font-semibold rounded-lg hover:bg-indigo-500 transition duration-200 shadow-md">Register</button>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-4 text-center">Using username/password for anonymous, fun sign-in.</p>
+        </div>
+    </section>
+
+    <!-- Main App Dashboard -->
+    <section id="app-section" class="p-4 md:p-8" style="display: none;">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-gray-200 mb-6">
+            <h1 class="text-4xl font-extrabold text-gray-800 flex items-center mb-3 md:mb-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-500 mr-3" viewBox="0 0 24 24" fill="currentColor"><path d="M18 6v-3c0-1.104-.896-2-2-2h-10c-1.104 0-2 .896-2 2v18c0 1.104.896 2 2 2h10c1.104 0 2-.896 2-2v-3h-4v-2h4v-3h-4v-2h4v-3h-4v-2h4zm-2 15h-8v-16h8v16zm-3-11v-2h2v2h-2zm0 3v-2h2v2h-2zm0 3v-2h2v2h-2z"/></svg>
+                <span class="truncate">Hello, <span id="current-user-name" class="text-indigo-600">User</span>!</span>
+            </h1>
+            <div class="flex space-x-3 items-center w-full md:w-auto">
+                <select id="folder-selector" class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm md:text-base">
+                    <option value="all">All Notes</option>
+                </select>
+                <button id="logout-btn" class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition duration-200 text-sm md:text-base shadow-md">Logout</button>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- New Note Area (Always Col 1) -->
+            <section id="new-note-section" class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-fit sticky top-4">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Add New Clip</h2>
+                
+                <textarea id="note-content-input" placeholder="Paste or type your note here. It syncs instantly." rows="5" class="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm"></textarea>
+                
+                <div class="mt-4 space-y-3">
+                    <input type="text" id="new-folder-name" placeholder="New Folder Name (Optional)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 text-sm">
+                    <button id="add-note-btn" class="w-full py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition duration-200 shadow-lg">
+                        Add Note & Sync
+                    </button>
+                    <div id="add-note-feedback" class="text-sm text-center pt-2 h-6 font-medium"></div>
+                </div>
+            </section>
+
+            <!-- Notes List (Cols 2 & 3) -->
+            <section id="notes-list-container" class="lg:col-span-2">
+                <div id="notes-list" class="space-y-4">
+                    <!-- Notes will be dynamically added here -->
+                    <p class="text-gray-500 text-center pt-10">Select a folder or add a new note to start syncing.</p>
+                </div>
+            </section>
+        </main>
+    </section>
+
+    <!-- Firebase SDK and Application Logic -->
+    <script type="module">
+        // Mandatory Firebase imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // setLogLevel('Debug'); // Uncomment for Firestore debugging
+
+        // --- 1. Global State and Initialization ---
+        
+        // Mandatory global variables for Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let userName = null;
+        let currentFolderId = 'all';
+
+        let notesUnsubscribe = null;
+        let foldersUnsubscribe = null;
+
+        const loadingScreen = document.getElementById('loading');
+        const authSection = document.getElementById('auth-section');
+        const appSection = document.getElementById('app-section');
+
+        // --- 2. Utility Functions ---
+
+        // Maps a username to a unique email format required by Firebase Auth
+        const usernameToEmail = (username) => `${username.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@syncedclipboard.com`;
+
+        // Copies text to clipboard silently
+        const copyToClipboard = async (text, button) => {
+            try {
+                // Use execCommand for broader iFrame compatibility, falling back to modern API
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                // Provide brief visual feedback
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.remove('bg-indigo-500');
+                button.classList.add('bg-green-500');
+
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('bg-green-500');
+                    button.classList.add('bg-indigo-500');
+                }, 800);
+
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+                // Fallback to basic copy method if needed
+            }
+        };
+
+        // Formats Firestore Timestamp object
+        const formatTimestamp = (timestamp) => {
+            if (!timestamp || !timestamp.toDate) return 'Time Unknown';
+            const date = timestamp.toDate();
+            return date.toLocaleString();
+        };
+
+        // --- 3. Authentication Logic (Firebase) ---
+
+        const updateAuthError = (message) => {
+            document.getElementById('auth-error').textContent = message;
+        };
+
+        const register = async () => {
+            const username = document.getElementById('auth-username').value;
+            const password = document.getElementById('auth-password').value;
+            updateAuthError('');
+            
+            if (!username || !password) {
+                updateAuthError("Username and password are required.");
+                return;
+            }
+
+            try {
+                const email = usernameToEmail(username);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // Note: displayName is not supported in the modular V9 SDK updateProfile on first creation
+                console.log("Registration successful for user:", userCredential.user.uid);
+            } catch (error) {
+                let message = "Registration failed: " + error.message;
+                if (error.code === 'auth/weak-password') {
+                    message = 'Password should be at least 6 characters.';
+                } else if (error.code === 'auth/email-already-in-use') {
+                    message = `Username "${username}" is already taken.`;
+                }
+                updateAuthError(message);
+            }
+        };
+
+        const login = async () => {
+            const username = document.getElementById('auth-username').value;
+            const password = document.getElementById('auth-password').value;
+            updateAuthError('');
+
+            if (!username || !password) {
+                updateAuthError("Username and password are required.");
+                return;
+            }
+
+            try {
+                const email = usernameToEmail(username);
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                updateAuthError('Login failed: Invalid username or password.');
+            }
+        };
+
+        const handleLogout = () => {
+            // Stop listeners first
+            if (notesUnsubscribe) notesUnsubscribe();
+            if (foldersUnsubscribe) foldersUnsubscribe();
+            currentFolderId = 'all'; // Reset state
+            signOut(auth);
+        };
+
+        // --- 4. Firestore Data Access ---
+
+        const getNotesCollectionRef = () => collection(db, `artifacts/${appId}/users/${userId}/notes`);
+        const getFoldersCollectionRef = () => collection(db, `artifacts/${appId}/users/${userId}/folders`);
+
+        // Real-time listener for Folders
+        const subscribeToFolders = (callback) => {
+            if (!userId) return;
+            const folderQuery = query(getFoldersCollectionRef());
+            
+            return onSnapshot(folderQuery, (snapshot) => {
+                const folders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                callback(folders);
+            }, (error) => {
+                console.error("Error subscribing to folders:", error);
+            });
+        };
+
+        // Real-time listener for Notes (filtered by folder)
+        const subscribeToNotes = (folderId, callback) => {
+            if (!userId) return;
+            currentFolderId = folderId;
+            let notesQuery;
+
+            if (folderId === 'all') {
+                // Fetch all notes, ordered by creation time descending
+                notesQuery = query(getNotesCollectionRef());
+            } else {
+                // Fetch notes filtered by the specific folderId
+                notesQuery = query(getNotesCollectionRef(), where('folderId', '==', folderId));
+            }
+            
+            // NOTE: Sorting must be done in-memory to avoid index errors with query filters
+            return onSnapshot(notesQuery, (snapshot) => {
+                let notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Sort in memory: newest (highest timestamp) first
+                notes.sort((a, b) => {
+                    const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
+                    const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
+                    return timeB - timeA; // Descending
+                });
+                
+                callback(notes);
+            }, (error) => {
+                console.error("Error subscribing to notes:", error);
+            });
+        };
+
+        const addNewNote = async () => {
+            const contentInput = document.getElementById('note-content-input');
+            const folderNameInput = document.getElementById('new-folder-name');
+            const feedbackDiv = document.getElementById('add-note-feedback');
+            const content = contentInput.value.trim();
+            const newFolderName = folderNameInput.value.trim();
+
+            if (!content) {
+                feedbackDiv.textContent = 'Please enter content for the note.';
+                feedbackDiv.classList.add('text-red-500');
+                setTimeout(() => { feedbackDiv.textContent = ''; feedbackDiv.classList.remove('text-red-500'); }, 2000);
+                return;
+            }
+            
+            try {
+                let folderId = 'default';
+                let actualFolderName = 'Default Notes';
+
+                // 1. Handle Folder Logic
+                if (newFolderName) {
+                    const folderRef = getFoldersCollectionRef();
+                    // Check if folder exists by name
+                    const folderSnapshot = await getDocs(query(folderRef, where('name', '==', newFolderName)));
+                    
+                    if (!folderSnapshot.empty) {
+                        // Folder exists, use its ID
+                        const existingFolder = folderSnapshot.docs[0];
+                        folderId = existingFolder.id;
+                        actualFolderName = existingFolder.data().name;
+                    } else {
+                        // Create new folder
+                        const newFolderDoc = await addDoc(folderRef, {
+                            name: newFolderName,
+                            createdAt: serverTimestamp()
+                        });
+                        folderId = newFolderDoc.id;
+                        actualFolderName = newFolderName;
+                    }
+                }
+
+                // 2. Add the Note
+                await addDoc(getNotesCollectionRef(), {
+                    content: content,
+                    folderId: folderId,
+                    folderName: actualFolderName,
+                    createdAt: serverTimestamp()
+                });
+
+                // Clear inputs and provide feedback
+                contentInput.value = '';
+                folderNameInput.value = '';
+                feedbackDiv.textContent = 'Note Synced!';
+                feedbackDiv.classList.add('text-green-500');
+                setTimeout(() => { feedbackDiv.textContent = ''; feedbackDiv.classList.remove('text-green-500'); }, 2000);
+
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                feedbackDiv.textContent = 'Error adding note.';
+                feedbackDiv.classList.add('text-red-500');
+                setTimeout(() => { feedbackDiv.textContent = ''; feedbackDiv.classList.remove('text-red-500'); }, 2000);
+            }
+        };
+
+        // --- 5. UI Rendering & Event Handlers ---
+
+        const renderFolders = (folders) => {
+            const selector = document.getElementById('folder-selector');
+            const oldSelection = selector.value;
+            
+            // Clear and add 'All Notes'
+            selector.innerHTML = '<option value="all">All Notes</option>';
+
+            folders.forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder.id;
+                option.textContent = `📁 ${folder.name}`;
+                selector.appendChild(option);
+            });
+            
+            // Restore selection or default to 'all'
+            if (selector.querySelector(`option[value="${oldSelection}"]`)) {
+                selector.value = oldSelection;
+            } else {
+                selector.value = 'all';
+            }
+            
+            // Re-subscribe to notes if the selected folder changed (or first load)
+            if (selector.value !== currentFolderId) {
+                startNotesSubscription(selector.value);
+            }
+        };
+
+        const renderNotes = (notes) => {
+            const notesList = document.getElementById('notes-list');
+            notesList.innerHTML = ''; // Clear existing notes
+            
+            if (notes.length === 0) {
+                notesList.innerHTML = `<p class="text-gray-500 text-center pt-10">No notes here. Add a new one or check the "All Notes" folder.</p>`;
+                return;
+            }
+
+            notes.forEach(note => {
+                const noteCard = document.createElement('div');
+                noteCard.className = 'note-card bg-white p-5 rounded-xl shadow-lg hover:shadow-xl transition duration-300 border-l-4 border-indigo-400 space-y-3';
+                noteCard.innerHTML = `
+                    <p class="note-content text-gray-800 whitespace-pre-wrap break-words">${note.content}</p>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-2 border-t border-gray-100 text-sm text-gray-500">
+                        <div class="flex space-x-3 mb-2 sm:mb-0">
+                            <span class="font-medium px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs">${note.folderName || 'Default Notes'}</span>
+                            <span class="text-xs self-center">🕒 ${formatTimestamp(note.createdAt)}</span>
+                        </div>
+                        <button class="copy-btn py-2 px-4 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-600 transition duration-150 text-xs shadow-md">
+                            Copy to Clipboard
+                        </button>
+                    </div>
+                `;
+                
+                const copyButton = noteCard.querySelector('.copy-btn');
+                copyButton.addEventListener('click', () => copyToClipboard(note.content, copyButton));
+                
+                notesList.appendChild(noteCard);
+            });
+        };
+
+        const startNotesSubscription = (folderId) => {
+            if (notesUnsubscribe) { notesUnsubscribe(); }
+            if (userId) {
+                notesUnsubscribe = subscribeToNotes(folderId, renderNotes);
+            }
+        };
+
+        // --- 6. Main Application Flow ---
+
+        const handleAuthStateChange = (user) => {
+            loadingScreen.style.display = 'none';
+
+            if (user) {
+                // User is signed in
+                userId = user.uid;
+                // Since we use username to create the account, we'll try to infer the username
+                userName = user.email ? user.email.split('@')[0] : 'User';
+
+                document.getElementById('current-user-name').textContent = userName;
+                authSection.style.display = 'none';
+                appSection.style.display = 'block';
+
+                // Start real-time listeners
+                foldersUnsubscribe = subscribeToFolders(renderFolders);
+                // Initial notes subscription will be triggered by the folder selector render
+                if (notesUnsubscribe === null) {
+                    startNotesSubscription('all');
+                }
+
+            } else {
+                // User is signed out
+                userId = null;
+                userName = null;
+                authSection.style.display = 'flex';
+                appSection.style.display = 'none';
+                
+                // Stop real-time listeners if they exist
+                if (notesUnsubscribe) { notesUnsubscribe(); notesUnsubscribe = null; }
+                if (foldersUnsubscribe) { foldersUnsubscribe(); foldersUnsubscribe = null; }
+            }
+        };
+
+        const initializeAppAndListeners = () => {
+
+            // Firebase Configuration (UPDATE THIS WITH YOUR FIREBASE PROJECT CONFIG)
+const firebaseConfig = {
+  apiKey: "AIzaSyDPCMHKcX8A9nDotgftqHMzqRN1W7rvcPA",
+  authDomain: "textme-ae3dc.firebaseapp.com",
+  projectId: "textme-ae3dc",
+  storageBucket: "textme-ae3dc.firebasestorage.app",
+  messagingSenderId: "461630294646",
+  appId: "1:461630294646:web:d305cdf10e098649fb2d57",
+  measurementId: "G-GZ35R77RJP"
+};
+            // 1. Initialize Firebase
+            if (Object.keys(firebaseConfig).length > 0) {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+            } else {
+                 // Fallback for environment where config isn't injected
+                 console.error("Firebase config is missing. App cannot run.");
+                 loadingScreen.innerHTML = `<p class="text-red-600">Configuration Error: Firebase config is not available.</p>`;
+                 return;
+            }
+
+            // 2. Handle Initial Authentication (Custom Token or Anonymous)
+            const authenticate = async () => {
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Custom token sign-in failed:", error);
+                        await signInAnonymously(auth);
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                }
+            };
+
+            authenticate();
+            
+            // 3. Set up Auth State Observer
+            onAuthStateChanged(auth, handleAuthStateChange);
+
+            // 4. Attach Event Listeners
+            document.getElementById('login-btn').addEventListener('click', login);
+            document.getElementById('register-btn').addEventListener('click', register);
+            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            document.getElementById('add-note-btn').addEventListener('click', addNewNote);
+            document.getElementById('folder-selector').addEventListener('change', (e) => {
+                startNotesSubscription(e.target.value);
+            });
+        };
+
+        // Start the application after the window loads
+        window.onload = initializeAppAndListeners;
+
+    </script>
+</body>
+</html>
